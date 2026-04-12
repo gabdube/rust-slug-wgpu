@@ -89,7 +89,9 @@ interface Demo {
   client: RustSlugClient;
   resources: GpuResources;
   user_state: DemoUserState,
+  assets: Assets,
   stats: DemoStats,
+  reload: boolean,
 }
 
 function align(value: number, n: number): number {
@@ -288,6 +290,13 @@ function render(demo: Demo) {
   device.queue.submit([encoder.finish()]);
 }
 
+async function reload(demo: Demo) {
+  demo.user_state = await initial_user_state();
+  demo.client.instance.free();
+  demo.client = await loadDemo(demo.assets, demo.resources, demo.user_state, demo.stats);
+  demo.reload = false;
+}
+
 let boundedRun = () => {};
 function run(demo: Demo) {
   if (demo.user_state.animate) {
@@ -299,7 +308,12 @@ function run(demo: Demo) {
   update(demo);
   render(demo);
 
-  requestAnimationFrame(boundedRun);
+  if (demo.reload) {
+    reload(demo)
+      .then(() => requestAnimationFrame(boundedRun) );
+  } else {
+    requestAnimationFrame(boundedRun);
+  }
 }
 
 //
@@ -450,11 +464,11 @@ function initUserControls(demo: Demo) {
   let lastY = 0;
 
   document.addEventListener("mousedown", (e) => {
-    isPressed = e.button == 0;
-    lastX = e.clientX;
-    lastY = e.clientY;
-    
-    
+    if (e.target === demo.canvas) {
+      isPressed = e.button == 0;
+      lastX = e.clientX;
+      lastY = e.clientY;
+    }
   });
 
   document.addEventListener("mousemove", (e) => {
@@ -557,6 +571,24 @@ function initUserControls(demo: Demo) {
   });
 }
 
+async function initial_user_state() {
+  const canvas = document.getElementById("canvas") as HTMLCanvasElement;
+  const the_entire_bee_movie_script = await (await fetch("bee.txt")).text();
+  return {
+    offset_x: 30,
+    offset_y: canvas.height / 2.0,
+    view_width: canvas.width,
+    view_height: canvas.height,
+    zoom: 1.0,
+    text_instances: [
+      {value: the_entire_bee_movie_script, font: "OpenSans", size: INITIAL_TEXT_SIZE, id: null}
+    ],
+    fonts: [],
+    default_font: 0,
+    animate: true,  // Gently scroll up the text, turns to false if the use interacts with the mouse controls
+  };
+}
+
 async function init() {
   const canvas = document.getElementById("canvas") as HTMLCanvasElement;
   canvas.width = document.body.clientWidth * devicePixelRatio;
@@ -571,20 +603,7 @@ async function init() {
   ctx.configure({ device, format, alphaMode: "premultiplied" });
 
   // Initial state
-  const the_entire_bee_movie_script = await (await fetch("bee.txt")).text();
-  const user_state = {
-    offset_x: 30,
-    offset_y: canvas.height / 2.0,
-    view_width: canvas.width,
-    view_height: canvas.height,
-    zoom: 1.0,
-    text_instances: [
-      {value: the_entire_bee_movie_script, font: "OpenSans", size: INITIAL_TEXT_SIZE, id: null}
-    ],
-    fonts: [],
-    default_font: 0,
-    animate: true,  // Gently scroll up the text, turns to false if the use interacts with the mouse controls
-  };
+  const user_state = await initial_user_state();
 
   const stats = {
     vertex_buffer_total_size: 0,
@@ -613,6 +632,8 @@ async function init() {
     resources,
     user_state,
     stats,
+    assets: initial_assets,
+    reload: false,
   };
 
   initUserControls(demo);

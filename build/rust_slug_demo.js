@@ -286,6 +286,12 @@ function render(demo) {
     pass.end();
     device.queue.submit([encoder.finish()]);
 }
+async function reload(demo) {
+    demo.user_state = await initial_user_state();
+    demo.client.instance.free();
+    demo.client = await loadDemo(demo.assets, demo.resources, demo.user_state, demo.stats);
+    demo.reload = false;
+}
 let boundedRun = () => { };
 function run(demo) {
     if (demo.user_state.animate) {
@@ -295,7 +301,13 @@ function run(demo) {
     resize(demo);
     update(demo);
     render(demo);
-    requestAnimationFrame(boundedRun);
+    if (demo.reload) {
+        reload(demo)
+            .then(() => requestAnimationFrame(boundedRun));
+    }
+    else {
+        requestAnimationFrame(boundedRun);
+    }
 }
 async function initGpuResources(device, target_format) {
     const vertex_buffer_total_size = 1024 * 1024 * 10;
@@ -415,9 +427,11 @@ function initUserControls(demo) {
     let lastX = 0;
     let lastY = 0;
     document.addEventListener("mousedown", (e) => {
-        isPressed = e.button == 0;
-        lastX = e.clientX;
-        lastY = e.clientY;
+        if (e.target === demo.canvas) {
+            isPressed = e.button == 0;
+            lastX = e.clientX;
+            lastY = e.clientY;
+        }
     });
     document.addEventListener("mousemove", (e) => {
         if (isPressed) {
@@ -513,19 +527,10 @@ function initUserControls(demo) {
         }
     });
 }
-async function init() {
+async function initial_user_state() {
     const canvas = document.getElementById("canvas");
-    canvas.width = document.body.clientWidth * devicePixelRatio;
-    canvas.height = document.body.clientHeight * devicePixelRatio;
-    const adapter = await navigator.gpu.requestAdapter();
-    if (!adapter)
-        throw new Error("No WebGPU adapter");
-    const device = await adapter.requestDevice();
-    const ctx = canvas.getContext("webgpu");
-    const format = navigator.gpu.getPreferredCanvasFormat();
-    ctx.configure({ device, format, alphaMode: "premultiplied" });
     const the_entire_bee_movie_script = await (await fetch("bee.txt")).text();
-    const user_state = {
+    return {
         offset_x: 30,
         offset_y: canvas.height / 2.0,
         view_width: canvas.width,
@@ -538,6 +543,19 @@ async function init() {
         default_font: 0,
         animate: true,
     };
+}
+async function init() {
+    const canvas = document.getElementById("canvas");
+    canvas.width = document.body.clientWidth * devicePixelRatio;
+    canvas.height = document.body.clientHeight * devicePixelRatio;
+    const adapter = await navigator.gpu.requestAdapter();
+    if (!adapter)
+        throw new Error("No WebGPU adapter");
+    const device = await adapter.requestDevice();
+    const ctx = canvas.getContext("webgpu");
+    const format = navigator.gpu.getPreferredCanvasFormat();
+    ctx.configure({ device, format, alphaMode: "premultiplied" });
+    const user_state = await initial_user_state();
     const stats = {
         vertex_buffer_total_size: 0,
         vertices_size: 0,
@@ -560,6 +578,8 @@ async function init() {
         resources,
         user_state,
         stats,
+        assets: initial_assets,
+        reload: false,
     };
     initUserControls(demo);
     updateMvp(demo);
