@@ -1,0 +1,11 @@
+[workspace]
+resolver = "2"
+members = [
+    "local-server",
+    "rust-slug",
+]
+
+[profile.release]
+opt-level = 2
+strip = "debuginfo"
+panic = "abort"

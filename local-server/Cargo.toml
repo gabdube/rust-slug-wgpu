@@ -1,0 +1,11 @@
+[package]
+name = "local-server"
+version = "0.1.0"
+edition = "2021"
+
+[features]
+
+[dependencies]
+rouille = "3.6.2"
+glob = "0.3.3"
+notify = { version = "6.1.1", default-features = false, features = ["macos_kqueue"] }
