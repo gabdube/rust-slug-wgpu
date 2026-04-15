@@ -6,11 +6,9 @@ struct GlobalParams {
 };
 
 struct GlyphInfo {
-    data: vec4<i32>,     // XY: [xmin, ymin, xmax, ymax] / ZW: curves offset, curves count (unused)
-    vband1: vec4<u32>,   // Curve indices range for vertical bands
-    vband2: vec4<u32>,
-    hband1: vec4<u32>,   // Curve indices range for horizontal bands
-    hband2: vec4<u32>,
+    data: vec4<i32>,      // XY: [xmin, ymin, xmax, ymax] / ZW: curves offset, curves count (unused)
+    vband: array<u32, 8>, // Curve indices range for vertical bands
+    hband: array<u32, 8>, // Curve indices range for horizontal bands
 };
 
 @group(0) @binding(0) var<uniform> params: GlobalParams;
@@ -139,38 +137,32 @@ fn CalcCoverage(xcov: f32, ycov: f32, xwgt: f32, ywgt: f32, flags: i32) -> f32 {
 fn fetchCurveIndicesRange(positions_em: vec2f, glyph_index: u32) -> vec4<u32> {
     const band_count = 8;
 
-    let glyph = glyph_data[glyph_index];
+    let p_glyph = &glyph_data[glyph_index];
 
-    let bbox_min = vec2<f32>(f32(extractBits(glyph.data.x, 0, 16u)), f32(extractBits(glyph.data.x, 16u, 16u)));
-    let bbox_max = vec2<f32>(f32(extractBits(glyph.data.y, 0, 16u)), f32(extractBits(glyph.data.y, 16u, 16u)));
-    let size = bbox_max - bbox_min;
-    let band_index = vec2<i32>(clamp(
-        ((positions_em - bbox_min) / size) * band_count,
-        vec2(0.0, 0.0),
-        vec2(band_count-1, band_count-1),
-    ));
+    let data_x = (*p_glyph).data.x;
+    let data_y = (*p_glyph).data.y;
 
-    var vband_indices: u32;
-    if (band_index.x < 4) {
-        vband_indices = glyph.vband1[band_index.x];
-    } else {
-        vband_indices = glyph.vband2[band_index.x - 4];
-    }
+    let bbox_min = vec2<f32>(
+        f32(extractBits(data_x, 0u, 16u)), 
+        f32(extractBits(data_x, 16u, 16u))
+    );
+    let bbox_max = vec2<f32>(
+        f32(extractBits(data_y, 0u, 16u)), 
+        f32(extractBits(data_y, 16u, 16u))
+    );
 
-    var hband_indices: u32;
-    if (band_index.y < 4) {
-        hband_indices = glyph.hband1[band_index.y];
-    } else {
-        hband_indices = glyph.hband2[band_index.y - 4];
-    }
+    let size = max(bbox_max - bbox_min, vec2<f32>(0.0001));
+    let band_index_f = (positions_em - bbox_min) * (band_count / size);
+    let band_index = vec2<u32>(clamp(band_index_f, vec2<f32>(0.0), vec2<f32>(band_count-1)));
 
-    let vband_start = vband_indices & 0xFFFFFFu;
-    let vband_count = vband_indices >> 24u;
+    let hband_indices = (*p_glyph).hband[band_index.y];
+    let vband_indices = (*p_glyph).vband[band_index.x];
 
-    let hband_start = hband_indices & 0xFFFFFFu;
-    let hband_count = hband_indices >> 24u;
+    let indices = vec2<u32>(hband_indices, vband_indices);
+    let starts = indices & vec2<u32>(0xFFFFFFu);
+    let counts = indices >> vec2<u32>(24u);
 
-    return vec4<u32>(hband_start, hband_count, vband_start, vband_count);
+    return vec4<u32>(starts.x, counts.x, starts.y, counts.y);
 }
 
 fn SlugRender(render_coord: vec2<f32>, curve_indices_range: vec4<u32>) -> f32 {

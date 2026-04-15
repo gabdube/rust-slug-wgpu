@@ -76,7 +76,7 @@ impl Debug for QuadCurveRanges {
     }
 }
 
-/// A packed range. Storing the count in the high 8 bit and the base offset in the low 24 bits
+/// A packed range. Storing the count in the high 8 bits and the base offset in the low 24 bits
 /// Used to store the curves offsets for a specific band in [SlugGlyph]
 #[derive(Default, Copy, Clone)]
 struct PackedRange {
@@ -276,7 +276,7 @@ impl<'a> ttf_parser::OutlineBuilder for SlugCurveExtractor<'a> {
     }
 }
 
-/// A builder than can be used to add one or more new glyph to a [SlugAtlas] instance
+/// A builder that can be used to add one or more new glyphs to a [SlugAtlas] instance
 struct SlugAtlasBuilder<'a> {
     pub data: &'a mut SlugAtlas,
     pub current_glyph: usize,
@@ -319,7 +319,7 @@ impl<'a> SlugAtlasBuilder<'a> {
         Some(())
     }
 
-    /// Spatial partitioning optimization. Associate the curves extracted in extract_glyph_curves into a list of `BAND_COUNT` horizontal and vertical bands
+    /// Spatial partitioning optimization. Associate the curves extracted in build_glyph_curves into a list of `BAND_COUNT` horizontal and vertical bands
     fn build_glyph_bands(&mut self) {
         let current_glyph = &mut self.data.glyphs[self.current_glyph];
         let [xmin, ymin, xmax, ymax] = current_glyph.bbox.splat_f32();
@@ -375,7 +375,7 @@ impl<'a> SlugAtlasBuilder<'a> {
             self.data.glyphs_curves_indices.push(0);
         }
 
-        // Thighly pack the curves indices in the slug data
+        // Tightly pack the curves indices in the slug data
         hband_count = [0u16; BAND_COUNT];
         vband_count = [0u16; BAND_COUNT];
         for curve_index in curve_start..curve_end {
@@ -402,7 +402,7 @@ impl<'a> SlugAtlasBuilder<'a> {
         }
 
         // Sort curves indices by x coordinates for horizontal bands and y coordinates for vertical bands
-        // sort_unstable_by sorts by ascending order, but the curves must be sorted in descending order, so
+        // sort_unstable_by sorts by ascending order, but the curves must be sorted in descending order, so the Greater/Less is inverted
         for &offsets_range in current_glyph.horizontal_bands.iter() {
             let [start, end] = offsets_range.as_range();
             let curve_offsets = &mut self.data.glyphs_curves_indices[start..end];
@@ -436,7 +436,7 @@ impl<'a> SlugAtlasBuilder<'a> {
         }
     }
 
-    // Adds glyph from face into the slug atlas. Return immediately if the glyph already exists.
+    // Adds glyph from face into the slug atlas. Panics if the glyph already exist
     fn build_glyph(&mut self, glyph_id: u32) -> Option<(usize, SlugGlyph)> {
         assert!(!self.data.has_glyph(glyph_id), "Glyph is already in the atlas!");
         
@@ -449,7 +449,7 @@ impl<'a> SlugAtlasBuilder<'a> {
 }
 
 
-/// A collection of processed font glyph for a font face
+/// A collection of processed font glyphs for a font face
 pub struct SlugAtlas {
     /// The font face associated with this atlas
     font: Box<FontFace>,
@@ -499,7 +499,7 @@ impl SlugAtlas {
     }
 
     /// Copy the font atlas data into linear memory. Returns the offsets of the data in SlugAtlasPackInfo
-    /// If `align_data` matches the minimum alignment of a gpu storage buffer, The whole buffer content can be used as-is the slug shader.
+    /// If `align_data` matches the minimum alignment of a GPU storage buffer, the whole buffer content can be used as-is by the slug shader.
     pub fn pack_into(&self, buffer: &mut Vec<u8>, align_data: Option<u32>) -> SlugAtlasPackInfo {
         let align = align_data.unwrap_or(1);
 
@@ -564,7 +564,7 @@ impl SlugAtlas {
     }
 
     /// Process a string of text into a [SlugString]
-    /// Add any missing glyph to the [SlugAtlas]
+    /// Add any missing glyphs to the [SlugAtlas]
     pub fn build_slug_string(&mut self, value: &str, size: f32) -> SlugString {
         let mut text_buffer = self.text_buffer.take().unwrap();
 
